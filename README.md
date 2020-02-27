@@ -94,8 +94,8 @@ Select output data:
 
 出力したいデータの種類を左側の番号で選択します。
 
-０を入力すると、CSVのヘッダのみを標準出力に出力します。
-1を入力すると、全データをCSV形式で標準出力に出力します。
+０を入力すると、CSVのヘッダのみを標準出力に出力します。  
+1を入力すると、全データをCSV形式で標準出力に出力します。  
 2を入力すると、JavaScriptの条件文により出力するデータを選択できるようになります。
 
 ```
@@ -108,9 +108,9 @@ input condition by js: listName === "Doing"
 
 条件文の例を示します。
 
-* Doingという名前のリストに滞在した時間のみ集計したい場合
+* Doingという名前のリストに滞在した時間のみ集計したい場合  
     `listName === "Doing"`
-* さらにメンバーの名前がtrellouserのみ集計したい場合
+* さらにメンバーの名前がtrellouserのみ集計したい場合  
     `listName === "Doing && member === "trellouser"`
-* さらに特定の日付の範囲のCSVのみ抽出したい場合
+* さらに特定の日付の範囲のCSVのみ抽出したい場合  
     `listName === "Doing && member === "trellouser" && inDate > new Date("2020/2/22") && outDate < new Date("2020/2/29")`
