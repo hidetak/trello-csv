@@ -1,6 +1,7 @@
 const readLine = require('readline')
 const fetch = require('node-fetch')
 const moment = require('moment-timezone')
+const Iconv = require('iconv').Iconv
 
 if (process.argv.length !== 5) {
   console.error(
@@ -21,6 +22,14 @@ const ACTIONS_URL = `https://trello.com/1/cards/$$CARD_ID$$/actions?key=${KEY}&t
 
 // Debugの出力を抑止
 console.debug = () => {}
+
+// OSの取得
+const isWindows = process.platform === 'win32'
+const isMac = process.platform === 'darwin'
+const isLinux = process.platform === 'linux'
+
+// 文字コード変換の準備
+const iconv = new Iconv('UTF-8', 'SHIFT_JIS//IGNORE')
 
 const readUserInput = (question, initialInput) => {
   const rl = readLine.createInterface({
@@ -62,9 +71,11 @@ const writeLine = d => {
   let outDate = moment(d.outDate)
     .tz('Asia/Tokyo')
     .format('YYYY/MM/DD HH:mm:ss')
-  console.log(
-    `"${d.cardId}","${d.number}","${d.title}","${d.point}","${d.listName}","${inDate}","${outDate}","${d.time}","${d.labelPink}","${d.labelGreen}","${d.member}"`
-  )
+  let line = `"${d.cardId}","${d.number}","${d.title}","${d.point}","${d.listName}","${inDate}","${outDate}","${d.time}","${d.labelPink}","${d.labelGreen}","${d.member}"`
+  if (isWindows) {
+    line = iconv.convert(line).toString()
+  }
+  console.log(line)
 }
 
 const parseData = (actionMap, cardsMap) => {
