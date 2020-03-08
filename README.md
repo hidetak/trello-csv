@@ -82,28 +82,36 @@ package.jsonをテキストエディタで開くと以下のような記載を�
 3: hoge2
 select board number: 2
 ```
-
+Trelloからのデータのダウンロードが開始します。
 しばらく待つと次に以下が表示されます。
 
 ```
-0: Show only header
-1: All
-2: Specify condition by js
-Select output data: 
+1: set group by
+2: input filter and show data
+current group by: 
+select: 
 ```
 
-出力したいデータの種類を左側の番号で選択します。
+実施したいことを左側の番号で選択します。
 
-０を入力すると、CSVのヘッダのみを標準出力に出力します。  
-1を入力すると、全データをCSV形式で標準出力に出力します。  
-2を入力すると、JavaScriptの条件文により出力するデータを選択できるようになります。
+1を入力すると、group byを設定できます。  
+group byは集計する際にまとめる変数であり、例えば`member`と入力するとメンバーの種類毎にPointの合計と、timeの合計がcsvで出力されるようになります。  
+group byの指定の際に何も表示せずにリターンすると、group byが未設定となります。
+```
+select: 1
+specify variable name, empty string means no group by
+  variable names: cardId,number,title,point,listName,inDate,outDate,time,labelPink,labelGreen,member
+group by: member
+```
+
+2を入力すると、JavaScriptの条件文を入力できます。  
+条件文を入力すると、各行をその条件文で評価し、trueとなった行のみを出力・集計の対象とします。
 
 ```
-0: Show only header
-1: All
-2: Specify condition by js
-Select output data: 2
-input condition by js: listName === "Doing"
+select: 2
+specify filter by javascript condition, the following variables are available, "true" means showing all data
+  variable names: cardId,number,title,point,listName,inDate,outDate,time,labelPink,labelGreen,member
+input condition: inDate > new Date("2020/2/22") && listName === "Doing"
 ```
 
 条件文の例を示します。

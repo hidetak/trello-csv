@@ -2,6 +2,7 @@ const readLine = require('readline')
 const fetch = require('node-fetch')
 const moment = require('moment-timezone')
 const Iconv = require('iconv').Iconv
+const clc = require('cli-color')
 
 if (process.argv.length !== 5) {
   console.error(
@@ -31,6 +32,11 @@ const isLinux = process.platform === 'linux'
 // 文字コード変換の準備
 const iconv = new Iconv('UTF-8', 'SHIFT_JIS//IGNORE')
 
+// color設定
+const inf = clc.xterm(83)
+const st = clc.xterm(50)
+const er = clc.xterm(204)
+
 const readUserInput = (question, initialInput) => {
   const rl = readLine.createInterface({
     input: process.stdin,
@@ -51,10 +57,10 @@ const readUserInput = (question, initialInput) => {
 const inputText = async (questionText, re, initialInput) => {
   while (true) {
     let a = await readUserInput(questionText, initialInput)
-    if (a && a.match(re)) {
+    if (a.match(re)) {
       return a
     } else {
-      console.log('error: invalid input')
+      console.log(er('error: invalid input'))
     }
   }
 }
@@ -157,7 +163,7 @@ const parseData = (actionMap, cardsMap) => {
   return list
 }
 
-const writeList = list => {
+const writeList = (list, showiingData) => {
   console.log(
     'cardId,number,title,point,listName,inDate,outDate,time,labelPink,labelGreen,member'
   )
@@ -176,6 +182,40 @@ const writeList = list => {
   console.log(`total point: ${totalPoint}`)
 }
 
+const writeListGroup = (list, groupby) => {
+  console.log(`${groupby},totalPoint,totalTime`)
+  let total = 0
+  let timesByGroup = {}
+  let relatedCardIds = {}
+  let pointsByGroup = {}
+  let cardPointMap = {}
+  for (let d of list) {
+    total += new Date(d.outDate).getTime() - new Date(d.inDate).getTime()
+    cardPointMap[d.cardId] = d.point
+    timesByGroup[d[groupby]] = timesByGroup[d[groupby]]
+      ? timesByGroup[d[groupby]] + d.time
+      : d.time
+    if (!relatedCardIds[d[groupby]] || !relatedCardIds[d[groupby]][d.cardId]) {
+      pointsByGroup[d[groupby]] = pointsByGroup[d[groupby]]
+        ? pointsByGroup[d[groupby]] + d.point
+        : d.point
+      if (!relatedCardIds[d[groupby]]) {
+        relatedCardIds[d[groupby]] = {}
+      }
+      relatedCardIds[d[groupby]][d.cardId] = d.cardId
+    }
+  }
+  let totalPoint = 0
+  for (let k in cardPointMap) {
+    totalPoint += cardPointMap[k]
+  }
+  for (let k in timesByGroup) {
+    console.log(`"${k}","${pointsByGroup[k]}","${timesByGroup[k]}"`)
+  }
+  console.log(`total: ${total / 1000 / 60 / 60} hrs`)
+  console.log(`total point: ${totalPoint}`)
+}
+
 const main = async () => {
   try {
     // Board一覧取得
@@ -184,10 +224,10 @@ const main = async () => {
     // Board一覧表示
     let num = 1
     for (const item of boardList) {
-      console.log(`${num++}: ${item.name}`)
+      console.log(inf(`${num++}: ${item.name}`))
     }
     // Board選択
-    let i = await inputText('select board number: ', `^[1-${num - 1}]$`)
+    let i = await inputText('select board by number: ', `^[1-${num - 1}]$`)
     const selectedBoard = boardList[Number(i - 1)]
     // User取得
     let memberMap = {}
@@ -239,30 +279,70 @@ const main = async () => {
     let list = parseData(actionMap, cardsMap)
     // 出力内容選択
     let initialCondition = ''
+    let groupby = ''
+    let showingList = [
+      'cardId',
+      'number',
+      'title',
+      'point',
+      'listName',
+      'inDate',
+      'outDate',
+      'time',
+      'labelPink',
+      'labelGreen',
+      'member'
+    ]
     while (true) {
-      console.log('----------')
-      console.log('0: Show only header')
-      console.log('1: All')
-      console.log('2: Specify condition by js')
-      const type = await inputText('Select output data: ', `^[0-2]$`)
-      if (type === '0') {
-        console.log('----------')
+      console.log(inf('----------'))
+      console.log(inf('1: set group by'))
+      console.log(inf('2: input filter and show data'))
+      console.log(st(`current group by: ${groupby}`))
+      const type = await inputText('select: ', `^[1-2]$`)
+      if (type === '1') {
         console.log(
-          'cardId,number,title,point,listName,inDate,outDate,time,labelPink,labelGreen,member'
+          inf('specify variable name, empty string means no group by')
         )
-      } else if (type === '1') {
-        console.log('----------')
-        writeList(list)
+        console.log(inf(`  variable names: ${showingList.toString()}`))
+        groupbyText = await inputText('group by: ', `.*`, groupby)
+        try {
+          const cardId = 'cardId',
+            number = 'number',
+            title = 'title',
+            point = 'point',
+            listName = 'listName',
+            inDate = 'inDate',
+            outDate = 'outDate',
+            time = 'time',
+            labelPink = 'labelPink',
+            labelGreen = 'labelGreen',
+            member = 'member',
+            totalTime = 'totalTime'
+          if (groupbyText === '') {
+            groupbyText = '""'
+          }
+          groupby = eval(groupbyText)
+        } catch (err) {
+          console.error(er(err))
+        }
       } else if (type === '2') {
+        console.log(
+          inf(
+            'specify filter by javascript condition, the following variables are available, "true" means showing all data'
+          )
+        )
+        console.log(inf(`  variable names: ${showingList.toString()}`))
         const condition = await inputText(
-          'input condition by js: ',
+          'input condition: ',
           `.+`,
           initialCondition
         )
-        console.log('----------')
+        console.log(inf('----------'))
         let newList = []
         let total = 0
         for (let d of list) {
+          const all = true
+          const header = false
           let {
             cardId,
             number,
@@ -283,16 +363,20 @@ const main = async () => {
               newList.push(d)
             }
           } catch (err) {
-            console.error(err)
+            console.error(er(err))
             break
           }
         }
-        writeList(newList)
+        if (groupby !== '') {
+          writeListGroup(newList, groupby)
+        } else {
+          writeList(newList, showingList)
+        }
         initialCondition = condition
       }
     }
   } catch (err) {
-    console.error(err)
+    console.error(er(err))
   }
 }
 
