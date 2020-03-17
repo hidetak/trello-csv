@@ -4,7 +4,7 @@
 
 [Trello](https://trello.com/)で保存した情報をCSV形式で出力するコマンドラインツールです。
 
-カードがどのくらいの時間、リストに存在していたがを集計するために利用することを想定しています。例えば、作業中はDoingという名前のリストにCardを移動し、終了したり、別の作業を開始するときはDoingリストの外に出すというルールでTrelloを運用することで、各カードに要した時間を計測できます。
+カードがどのくらいの時間、リストに存在していたかを集計するために利用することを想定しています。例えば、作業中はDoingという名前のリストにCardを移動し、終了したり、別の作業を開始するときはDoingリストの外に出すというルールでTrelloを運用することで、各カードに要した時間を計測できます。
 
 [Node.js](https://nodejs.org/)上で動作します。
 
@@ -51,21 +51,30 @@ Terminalを起動し、ソースコードを配置したフォルダ(ここで�
 > npm i
 ```
 
-インストールが完了したら`package.json`にTrelloのKEY、TOKEN、USERNAMEを設定します。
+インストールが完了したら`config.json`に以下の情報を登録します。
 
-KEYとTOKENはTrello APIの[紹介ページ](https://developers.trello.com/docs/api-introduction)を参照し、生成してください。USERNAMEはTrelloに設定したユーザ名です。
+|キー|値の説明|
+| --- | --- |
+|KEY|TrelloのAPIを呼び出す際に利用するキー *1 |
+|TOKEN|TrelloのAPIを呼び出す際に利用するトークン *1 |
+|USERNAME|Trelloに設定したユーザ名 |
+|FIRSTDATETIME|残りIssue数やPoint数をカウントする際にカウントを始める最初の日時 *2 |
+|INTERVAL_HOUR|残りIssue数やPoint数をカウントする際にカウントする間隔 *2 |
 
-package.jsonをテキストエディタで開くと以下のような記載を見つけることができます。
+*1: KEYとTOKENはTrello APIの[紹介ページ](https://developers.trello.com/docs/api-introduction)を参照し、生成してください。
 
+例
 ```
-    "start": "node index.js <KEY> <TOKEN> <USERNAME>"
+{
+  "KEY": "7325fc93ecb5612c0a10273ecfe84153",
+  "TOKEN": "256a94c3943ec573b6791103526fa0ef723e0b8f132ef20780ebf733ae78d869",
+  "USERNAME": "trellouser",
+  "FIRSTDATETIME": "2020/03/16 19:00",
+  "INTERVAL_HOUR": 24
+}
 ```
-`<KEY>`、`<TOKEN>`、`<USERNAME>`の箇所を取得した値に置き換えてください。
 
-例:
-```
-    "start": "node index.js 7325fc93ecb5612c0a10273ecfe84153 256a94c3943ec573b6791103526fa0ef723e0b8f132ef20780ebf733ae78d869 trellouser"
-```
+*2: `FIRSTDATETIME`と`INTERVAL_HOUR`を上記のように設定し、残りカード数やPoint数をカウントする機能(後述)を呼び出すと2020/03/16 19:00時点の残りカード数やPoint数、2020/03/17 19:00時点の残りカード数やPoint数、・・・のように24時間毎に現在時刻未満までの状況を出力します(バーンダウンチャートを描く際に利用することを想定しています)。
 
 これで準備が整いました。
 実行はTerminalから以下のコマンドにより行います。
@@ -86,8 +95,9 @@ Trelloからのデータのダウンロードが開始します。
 しばらく待つと次に以下が表示されます。
 
 ```
-1: set group by
+1: set "group by" for "2"
 2: input filter and show data
+3: remaining number of issues and points
 current group by: 
 select: 
 ```
@@ -122,3 +132,26 @@ input condition: inDate > new Date("2020/2/22") && listName === "Doing"
     `listName === "Doing && member === "trellouser"`
 * さらに特定の日付の範囲のCSVのみ抽出したい場合  
     `listName === "Doing && member === "trellouser" && inDate > new Date("2020/2/22") && outDate < new Date("2020/2/29")`
+
+３を選択すると残りカード数やPoint数などを表示します。
+表示例を以下に示します。
+
+```
+select: 3
+"datetime","all issues","all points","done issues","done points","remaining issues","remaining points"
+"2020-03-16 19:00","70","497","7","52","63","445"
+"2020-03-17 19:00","81","640","10","91","71","549"
+```
+
+この機能はリストの名前やリストの運用に依存した機能になっており汎用的ではありません。
+出力するデータについて以下に説明します。
+
+|データ名|値の説明|
+| --- | --- |
+|datetime|いつの時点のカード数やPoint数の集計であるかを示します(最初の日時と間隔はconfig.jsonで指定します)。|
+|all issues|Tasksリストを除く全リストのカード数です。Tasksリストには今回のSprint外のカードを保持する運用であるため除外しています。|
+|all points|Tasksリストを除く全リストのカードに記載されたPoint数の合計です。|
+|done issues|Doneリストのカード数です。|
+|done points|Doneリストのカードに記載されたPoint数の合計です。|
+|remaining issues|まだDoneになっていないカードの数です。|
+|remaining points|まだDoneになっていないカードに記載されたPoint数の合計です。|

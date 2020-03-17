@@ -4,26 +4,6 @@ const moment = require('moment-timezone')
 const Iconv = require('iconv').Iconv
 const clc = require('cli-color')
 
-if (process.argv.length !== 5) {
-  console.error(
-    'usage: node index.js <Trello KEY> <Trello TOKEN> <Trello USERNAME>'
-  )
-  process.exit()
-}
-
-const KEY = process.argv[2]
-const TOKEN = process.argv[3]
-const USERNAME = process.argv[4]
-
-const BOARDS_URL = `https://trello.com/1/members/${USERNAME}/boards?key=${KEY}&token=${TOKEN}&fields=name,memberships`
-const MEMBERS_URL = `https://trello.com/1/members/$$MEMBER_ID$$/?fields=fullName,username&key=${KEY}&token=${TOKEN}`
-const LISTS_URL = `https://trello.com/1/boards/$$BOARD_ID$$/lists?fields=name,url&key=${KEY}&token=${TOKEN}`
-const CARDS_URL = `https://trello.com/1/lists/$$LIST_ID$$/cards?key=${KEY}&token=${TOKEN}&fields=name,labels,idMembers,desc`
-const ACTIONS_URL = `https://trello.com/1/cards/$$CARD_ID$$/actions?key=${KEY}&token=${TOKEN}&filter=all`
-
-// Debugの出力を抑止
-console.debug = () => {}
-
 // OSの取得
 const isWindows = process.platform === 'win32'
 const isMac = process.platform === 'darwin'
@@ -36,6 +16,30 @@ const iconv = new Iconv('UTF-8', 'SHIFT_JIS//IGNORE')
 const inf = clc.xterm(83)
 const st = clc.xterm(50)
 const er = clc.xterm(204)
+
+let config
+try {
+  config = require('./config.json')
+} catch (err) {
+  console.error(er('cannot find config.json file'))
+  process.exit()
+}
+
+const KEY = config.KEY
+const TOKEN = config.TOKEN
+const USERNAME = config.USERNAME
+
+const FIRSTDATETIME = config.FIRSTDATETIME
+const INTERVAL_HOUR = config.INTERVAL_HOUR
+
+const BOARDS_URL = `https://trello.com/1/members/${USERNAME}/boards?key=${KEY}&token=${TOKEN}&fields=name,memberships`
+const MEMBERS_URL = `https://trello.com/1/members/$$MEMBER_ID$$/?fields=fullName,username&key=${KEY}&token=${TOKEN}`
+const LISTS_URL = `https://trello.com/1/boards/$$BOARD_ID$$/lists?fields=name,url&key=${KEY}&token=${TOKEN}`
+const CARDS_URL = `https://trello.com/1/lists/$$LIST_ID$$/cards?key=${KEY}&token=${TOKEN}&fields=name,labels,idMembers,desc`
+const ACTIONS_URL = `https://trello.com/1/cards/$$CARD_ID$$/actions?key=${KEY}&token=${TOKEN}&filter=all`
+
+// Debugの出力を抑止
+console.debug = () => {}
 
 const readUserInput = (question, initialInput) => {
   const rl = readLine.createInterface({
@@ -295,10 +299,11 @@ const main = async () => {
     ]
     while (true) {
       console.log(inf('----------'))
-      console.log(inf('1: set group by'))
+      console.log(inf('1: set "group by" for "2"'))
       console.log(inf('2: input filter and show data'))
+      console.log(inf('3: remaining number of issues and points'))
       console.log(st(`current group by: ${groupby}`))
-      const type = await inputText('select: ', `^[1-2]$`)
+      const type = await inputText('select: ', `^[1-3]$`)
       if (type === '1') {
         console.log(
           inf('specify variable name, empty string means no group by')
@@ -373,6 +378,41 @@ const main = async () => {
           writeList(newList, showingList)
         }
         initialCondition = condition
+      } else if (type === '3') {
+        const firstDateTime = new Date(FIRSTDATETIME).getTime()
+        const interval = INTERVAL_HOUR * 60 * 60 * 1000
+        const currentTime = Date.now()
+        console.log(
+          '"datetime","all issues","all points","done issues","done points","remaining issues","remaining points"'
+        )
+        for (let time = firstDateTime; time < currentTime; time += interval) {
+          let numberOfAllCards = 0
+          let allPoints = 0
+          let numberOfDoneCards = 0
+          let donePoints = 0
+          for (let d of list) {
+            let inDate = new Date(d.inDate)
+            let outDate = new Date(d.outDate)
+            if (
+              inDate.getTime() < time &&
+              time < outDate &&
+              d.listName !== 'Tasks'
+            ) {
+              numberOfAllCards++
+              allPoints += d.point
+              if (d.listName === 'Done') {
+                numberOfDoneCards++
+                donePoints += d.point
+              }
+            }
+          }
+          console.log(
+            `"${moment(time).format(
+              'YYYY-MM-DD HH:mm'
+            )}","${numberOfAllCards}","${allPoints}","${numberOfDoneCards}","${donePoints}","${numberOfAllCards -
+              numberOfDoneCards}","${allPoints - donePoints}"`
+          )
+        }
       }
     }
   } catch (err) {
