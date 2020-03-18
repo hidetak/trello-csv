@@ -133,14 +133,19 @@ input condition: inDate > new Date("2020/2/22") && listName === "Doing"
 * さらに特定の日付の範囲のCSVのみ抽出したい場合  
     `listName === "Doing && member === "trellouser" && inDate > new Date("2020/2/22") && outDate < new Date("2020/2/29")`
 
-３を選択すると残りカード数やPoint数などを表示します。
+３を選択すると2の場合と同様に条件の入力を求められます。条件を入れるとその条件に合うカードの残りカード数やPoint数などを表示します。
 表示例を以下に示します。
 
 ```
 select: 3
+specify filter by javascript condition, the following variables are available, "true" means showing all data
+input condition: member === "trello user"
+----------
 "datetime","all issues","all points","done issues","done points","remaining issues","remaining points"
-"2020-03-16 19:00","70","497","7","52","63","445"
-"2020-03-17 19:00","81","640","10","91","71","549"
+"2020-03-16 19:00","71","498","7","52","64","446"
+"2020-03-17 19:00","82","606","10","91","72","515"
+"2020-03-18 19:00","90","630","16","98","74","532"
+"2020-03-19 00:30","90","630","16","98","74","532"
 ```
 
 この機能はリストの名前やリストの運用に依存した機能になっており汎用的ではありません。

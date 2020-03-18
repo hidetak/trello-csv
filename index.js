@@ -38,6 +38,8 @@ const LISTS_URL = `https://trello.com/1/boards/$$BOARD_ID$$/lists?fields=name,ur
 const CARDS_URL = `https://trello.com/1/lists/$$LIST_ID$$/cards?key=${KEY}&token=${TOKEN}&fields=name,labels,idMembers,desc`
 const ACTIONS_URL = `https://trello.com/1/cards/$$CARD_ID$$/actions?key=${KEY}&token=${TOKEN}&filter=all`
 
+const NOW = Date.now()
+
 // Debugの出力を抑止
 console.debug = () => {}
 
@@ -282,7 +284,8 @@ const main = async () => {
     // Parse
     let list = parseData(actionMap, cardsMap)
     // 出力内容選択
-    let initialCondition = ''
+    let initialFilterCondition = ''
+    let initialCountCondition = ''
     let groupby = ''
     let showingList = [
       'cardId',
@@ -340,7 +343,7 @@ const main = async () => {
         const condition = await inputText(
           'input condition: ',
           `.+`,
-          initialCondition
+          initialFilterCondition
         )
         console.log(inf('----------'))
         let newList = []
@@ -377,33 +380,69 @@ const main = async () => {
         } else {
           writeList(newList, showingList)
         }
-        initialCondition = condition
+        initialFilterCondition = condition
       } else if (type === '3') {
+        console.log(
+          inf(
+            'specify filter by javascript condition, the following variables are available, "true" means showing all data'
+          )
+        )
+        // console.log(inf(`  variable names: ${showingList.toString()}`))
+        const condition = await inputText(
+          'input condition: ',
+          `.+`,
+          initialCountCondition
+        )
+        console.log(inf('----------'))
         const firstDateTime = new Date(FIRSTDATETIME).getTime()
         const interval = INTERVAL_HOUR * 60 * 60 * 1000
-        const currentTime = Date.now()
+        const currentTime = NOW
         console.log(
           '"datetime","all issues","all points","done issues","done points","remaining issues","remaining points"'
         )
-        for (let time = firstDateTime; time < currentTime; time += interval) {
+        for (
+          let time = firstDateTime;
+          time < currentTime + interval;
+          time += interval
+        ) {
+          if (time > currentTime) {
+            time = currentTime
+          }
           let numberOfAllCards = 0
           let allPoints = 0
           let numberOfDoneCards = 0
           let donePoints = 0
           for (let d of list) {
-            let inDate = new Date(d.inDate)
-            let outDate = new Date(d.outDate)
-            if (
-              inDate.getTime() < time &&
-              time < outDate &&
-              d.listName !== 'Tasks'
-            ) {
-              numberOfAllCards++
-              allPoints += d.point
-              if (d.listName === 'Done') {
-                numberOfDoneCards++
-                donePoints += d.point
+            let {
+              cardId,
+              number,
+              title,
+              point,
+              listName,
+              labelPink,
+              labelGreen,
+              member
+            } = d
+            const inDate = new Date(d.inDate)
+            const outDate = new Date(d.outDate)
+            try {
+              if (eval(condition)) {
+                if (
+                  inDate.getTime() < time &&
+                  time < outDate.getTime() &&
+                  d.listName !== 'Tasks'
+                ) {
+                  numberOfAllCards++
+                  allPoints += d.point
+                  if (d.listName === 'Done') {
+                    numberOfDoneCards++
+                    donePoints += d.point
+                  }
+                }
               }
+            } catch (err) {
+              console.error(er(err))
+              break
             }
           }
           console.log(
@@ -412,6 +451,7 @@ const main = async () => {
             )}","${numberOfAllCards}","${allPoints}","${numberOfDoneCards}","${donePoints}","${numberOfAllCards -
               numberOfDoneCards}","${allPoints - donePoints}"`
           )
+          initialCountCondition = condition
         }
       }
     }
