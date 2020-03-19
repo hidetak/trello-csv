@@ -103,8 +103,8 @@ const parseData = (actionMap, cardsMap) => {
     let member = cardsMap[key].membersText ? cardsMap[key].membersText : '-'
     let desc = cardsMap[key].desc
     let point = 0
-    if (desc && desc.match('(Point|point|POINT) *: *([0-9]+)')) {
-      point = Number(desc.match('(Point|point|POINT) *: *([0-9]+)')[2])
+    if (desc && desc.match('(Point|point|POINT) *: *([.0-9]+)')) {
+      point = Number(desc.match('(Point|point|POINT) *: *([.0-9]+)')[2])
     }
     let current
     for (let i = actions.length - 1; i >= 0; i--) {
