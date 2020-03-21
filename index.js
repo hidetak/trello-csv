@@ -1,16 +1,9 @@
 const readLine = require('readline')
 const fetch = require('node-fetch')
 const moment = require('moment-timezone')
-const Iconv = require('iconv').Iconv
 const clc = require('cli-color')
-
-// OSの取得
-const isWindows = process.platform === 'win32'
-const isMac = process.platform === 'darwin'
-const isLinux = process.platform === 'linux'
-
-// 文字コード変換の準備
-const iconv = new Iconv('UTF-8', 'SHIFT_JIS//IGNORE')
+const fs = require('fs')
+const open = require('open')
 
 // color設定
 const inf = clc.xterm(83)
@@ -84,9 +77,6 @@ const writeLine = d => {
     .tz('Asia/Tokyo')
     .format('YYYY/MM/DD HH:mm:ss')
   let line = `"${d.cardId}","${d.number}","${d.title}","${d.point}","${d.listName}","${inDate}","${outDate}","${d.time}","${d.labelPink}","${d.labelGreen}","${d.member}"`
-  if (isWindows) {
-    line = iconv.convert(line).toString()
-  }
   console.log(line)
 }
 
@@ -170,9 +160,6 @@ const parseData = (actionMap, cardsMap) => {
 }
 
 const writeList = (list, showiingData) => {
-  console.log(
-    'cardId,number,title,point,listName,inDate,outDate,time,labelPink,labelGreen,member'
-  )
   let total = 0
   let cardPointMap = {}
   for (let d of list) {
@@ -220,6 +207,58 @@ const writeListGroup = (list, groupby) => {
   }
   console.log(`total: ${total / 1000 / 60 / 60} hrs`)
   console.log(`total point: ${totalPoint}`)
+}
+
+const writePointCountList = (allDaysCountList, groupValues) => {
+  let line = '"datetime","all points","done points","remaining points"'
+  const keys = Object.keys(groupValues)
+  for (let k of keys) {
+    line += `,"${k}"`
+  }
+  line += '\n'
+  for (let d of allDaysCountList) {
+    line += `"${moment(d.time).format('YYYY-MM-DD HH:mm')}","${d.allPoints}","${
+      d.donePoints
+    }","${d.remainPointsEachGroup['all']}"`
+    for (let k of keys) {
+      line += `,"${
+        d.remainPointsEachGroup[k] ? d.remainPointsEachGroup[k] : '-'
+      }"`
+    }
+    line += '\n'
+  }
+  console.log(line)
+  fs.writeFileSync(
+    'chart-html/data/pointsCountData.csv.js',
+    'const pointsCountDataCSV = `' + line + '`'
+  )
+}
+
+const writeIssueCountList = (allDaysCountList, groupValues) => {
+  let line = '"datetime","all issues","done issues","remaining issues"'
+  const keys = Object.keys(groupValues)
+  for (let k of keys) {
+    line += `,"${k}"`
+  }
+  line += '\n'
+  for (let d of allDaysCountList) {
+    line += `"${moment(d.time).format('YYYY-MM-DD HH:mm')}","${
+      d.numberOfAllCards
+    }","${d.numberOfDoneCards}","${d.numberOfRemainCardsEachGroup['all']}"`
+    for (let k of keys) {
+      line += `,"${
+        d.numberOfRemainCardsEachGroup[k]
+          ? d.numberOfRemainCardsEachGroup[k]
+          : '-'
+      }"`
+    }
+    line += '\n'
+  }
+  console.log(line)
+  fs.writeFileSync(
+    'chart-html/data/issuesCountData.csv.js',
+    'const issuesCountDataCSV = `' + line + '`'
+  )
 }
 
 const main = async () => {
@@ -302,7 +341,7 @@ const main = async () => {
     ]
     while (true) {
       console.log(inf('----------'))
-      console.log(inf('1: set "group by" for "2"'))
+      console.log(inf('1: set "group by"'))
       console.log(inf('2: input filter and show data'))
       console.log(inf('3: remaining number of issues and points'))
       console.log(st(`current group by: ${groupby}`))
@@ -397,9 +436,8 @@ const main = async () => {
         const firstDateTime = new Date(FIRSTDATETIME).getTime()
         const interval = INTERVAL_HOUR * 60 * 60 * 1000
         const currentTime = NOW
-        console.log(
-          '"datetime","all issues","all points","done issues","done points","remaining issues","remaining points"'
-        )
+        let allDaysCountList = []
+        let groupValues = {}
         for (
           let time = firstDateTime;
           time < currentTime + interval;
@@ -412,6 +450,8 @@ const main = async () => {
           let allPoints = 0
           let numberOfDoneCards = 0
           let donePoints = 0
+          let numberOfRemainCardsEachGroup = {}
+          let remainPointsEachGroup = {}
           for (let d of list) {
             let {
               cardId,
@@ -436,7 +476,29 @@ const main = async () => {
                   allPoints += d.point
                   if (d.listName === 'Done') {
                     numberOfDoneCards++
-                    donePoints += d.point
+                    donePoints++
+                  } else {
+                    numberOfRemainCardsEachGroup[
+                      'all'
+                    ] = numberOfRemainCardsEachGroup['all']
+                      ? numberOfRemainCardsEachGroup['all'] + 1
+                      : 1
+                    remainPointsEachGroup['all'] = remainPointsEachGroup['all']
+                      ? remainPointsEachGroup['all'] + d.point
+                      : d.point
+                    if (groupby != '') {
+                      groupValues[d[groupby]] = d[groupby]
+                      numberOfRemainCardsEachGroup[
+                        d[groupby]
+                      ] = numberOfRemainCardsEachGroup[d[groupby]]
+                        ? numberOfRemainCardsEachGroup[d[groupby]] + 1
+                        : 1
+                      remainPointsEachGroup[d[groupby]] = remainPointsEachGroup[
+                        d[groupby]
+                      ]
+                        ? remainPointsEachGroup[d[groupby]] + d.point
+                        : d.point
+                    }
                   }
                 }
               }
@@ -445,14 +507,21 @@ const main = async () => {
               break
             }
           }
-          console.log(
-            `"${moment(time).format(
-              'YYYY-MM-DD HH:mm'
-            )}","${numberOfAllCards}","${allPoints}","${numberOfDoneCards}","${donePoints}","${numberOfAllCards -
-              numberOfDoneCards}","${allPoints - donePoints}"`
-          )
-          initialCountCondition = condition
+          allDaysCountList.push({
+            time,
+            numberOfAllCards,
+            allPoints,
+            numberOfDoneCards,
+            donePoints,
+            numberOfRemainCardsEachGroup,
+            remainPointsEachGroup
+          })
         }
+        writeIssueCountList(allDaysCountList, groupValues)
+        console.log(inf('----------'))
+        writePointCountList(allDaysCountList, groupValues)
+        initialCountCondition = condition
+        await open('chart-html/index.html')
       }
     }
   } catch (err) {

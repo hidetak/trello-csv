@@ -95,7 +95,7 @@ Trelloからのデータのダウンロードが開始します。
 しばらく待つと次に以下が表示されます。
 
 ```
-1: set "group by" for "2"
+1: set "group by"
 2: input filter and show data
 3: remaining number of issues and points
 current group by: 
@@ -105,7 +105,7 @@ select:
 実施したいことを左側の番号で選択します。
 
 1を入力すると、group byを設定できます。  
-group byは集計する際にまとめる変数であり、例えば`member`と入力するとメンバーの種類毎にPointの合計と、timeの合計がcsvで出力されるようになります。  
+group byは集計する際にまとめる変数であり、例えば`member`と入力するとメンバーの種類毎に集計を行います。  
 group byの指定の際に何も表示せずにリターンすると、group byが未設定となります。
 ```
 select: 1
@@ -133,19 +133,27 @@ input condition: inDate > new Date("2020/2/22") && listName === "Doing"
 * さらに特定の日付の範囲のCSVのみ抽出したい場合  
     `listName === "Doing && member === "trellouser" && inDate > new Date("2020/2/22") && outDate < new Date("2020/2/29")`
 
-３を選択すると2の場合と同様に条件の入力を求められます。条件を入れるとその条件に合うカードの残りカード数やPoint数などを表示します。
-表示例を以下に示します。
+３を選択すると2の場合と同様に条件の入力を求められます。条件を入れるとその条件に合うカードの残りカード数やPoint数などをCSV形式で出力します。さらにブラウザを立ち上げ、Burndown chartを表示します。
+
+CSVの表示例を以下に示します。
 
 ```
 select: 3
 specify filter by javascript condition, the following variables are available, "true" means showing all data
 input condition: member === "trello user"
 ----------
-"datetime","all issues","all points","done issues","done points","remaining issues","remaining points"
-"2020-03-16 19:00","71","498","7","52","64","446"
-"2020-03-17 19:00","82","606","10","91","72","515"
-"2020-03-18 19:00","90","630","16","98","74","532"
-"2020-03-19 00:30","90","630","16","98","74","532"
+"datetime","all issues","done issues","remaining issues"
+"2020-03-16 19:00","71","7","64"
+"2020-03-17 19:00","82","10","72"
+"2020-03-18 19:00","90","16","74"
+"2020-03-19 00:30","90","16","74"
+
+----------
+"datetime","all points","done points","remaining points"
+"2020-03-16 19:00","498","52","446"
+"2020-03-17 19:00","606","91","515"
+"2020-03-18 19:00","630","98","532"
+"2020-03-19 00:30","630","98","532"
 ```
 
 この機能はリストの名前やリストの運用に依存した機能になっており汎用的ではありません。
@@ -160,3 +168,5 @@ input condition: member === "trello user"
 |done points|Doneリストのカードに記載されたPoint数の合計です。|
 |remaining issues|まだDoneになっていないカードの数です。|
 |remaining points|まだDoneになっていないカードに記載されたPoint数の合計です。|
+
+もし、group byを設定していた場合は上記の後に、group byで指定した変数の値毎に残りのIssue数やPoint数を出力します。

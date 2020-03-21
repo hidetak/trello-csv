@@ -1,6 +1,6 @@
 {
   "name": "trello-csv",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -11,9 +11,9 @@
   "license": "ISC",
   "dependencies": {
     "cli-color": "^2.0.0",
-    "iconv": "^2.3.5",
     "moment": "^2.24.0",
     "moment-timezone": "^0.5.28",
-    "node-fetch": "^2.6.0"
+    "node-fetch": "^2.6.0",
+    "open": "^7.0.3"
   }
 }
