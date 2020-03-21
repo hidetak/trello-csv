@@ -1,19 +1,29 @@
 const readLine = require('readline')
 const fetch = require('node-fetch')
 const moment = require('moment-timezone')
-const Iconv = require('iconv').Iconv
 const clc = require('cli-color')
+const fs = require('fs')
+const open = require('open')
 
-if (process.argv.length !== 5) {
-  console.error(
-    'usage: node index.js <Trello KEY> <Trello TOKEN> <Trello USERNAME>'
-  )
+// color設定
+const inf = clc.xterm(83)
+const st = clc.xterm(50)
+const er = clc.xterm(204)
+
+let config
+try {
+  config = require('./config.json')
+} catch (err) {
+  console.error(er('cannot find config.json file'))
   process.exit()
 }
 
-const KEY = process.argv[2]
-const TOKEN = process.argv[3]
-const USERNAME = process.argv[4]
+const KEY = config.KEY
+const TOKEN = config.TOKEN
+const USERNAME = config.USERNAME
+
+const FIRSTDATETIME = config.FIRSTDATETIME
+const INTERVAL_HOUR = config.INTERVAL_HOUR
 
 const BOARDS_URL = `https://trello.com/1/members/${USERNAME}/boards?key=${KEY}&token=${TOKEN}&fields=name,memberships`
 const MEMBERS_URL = `https://trello.com/1/members/$$MEMBER_ID$$/?fields=fullName,username&key=${KEY}&token=${TOKEN}`
@@ -21,21 +31,10 @@ const LISTS_URL = `https://trello.com/1/boards/$$BOARD_ID$$/lists?fields=name,ur
 const CARDS_URL = `https://trello.com/1/lists/$$LIST_ID$$/cards?key=${KEY}&token=${TOKEN}&fields=name,labels,idMembers,desc`
 const ACTIONS_URL = `https://trello.com/1/cards/$$CARD_ID$$/actions?key=${KEY}&token=${TOKEN}&filter=all`
 
+const NOW = Date.now()
+
 // Debugの出力を抑止
 console.debug = () => {}
-
-// OSの取得
-const isWindows = process.platform === 'win32'
-const isMac = process.platform === 'darwin'
-const isLinux = process.platform === 'linux'
-
-// 文字コード変換の準備
-const iconv = new Iconv('UTF-8', 'SHIFT_JIS//IGNORE')
-
-// color設定
-const inf = clc.xterm(83)
-const st = clc.xterm(50)
-const er = clc.xterm(204)
 
 const readUserInput = (question, initialInput) => {
   const rl = readLine.createInterface({
@@ -78,9 +77,6 @@ const writeLine = d => {
     .tz('Asia/Tokyo')
     .format('YYYY/MM/DD HH:mm:ss')
   let line = `"${d.cardId}","${d.number}","${d.title}","${d.point}","${d.listName}","${inDate}","${outDate}","${d.time}","${d.labelPink}","${d.labelGreen}","${d.member}"`
-  if (isWindows) {
-    line = iconv.convert(line).toString()
-  }
   console.log(line)
 }
 
@@ -97,8 +93,8 @@ const parseData = (actionMap, cardsMap) => {
     let member = cardsMap[key].membersText ? cardsMap[key].membersText : '-'
     let desc = cardsMap[key].desc
     let point = 0
-    if (desc && desc.match('(Point|point|POINT) *: *([0-9]+)')) {
-      point = Number(desc.match('(Point|point|POINT) *: *([0-9]+)')[2])
+    if (desc && desc.match('(Point|point|POINT) *: *([.0-9]+)')) {
+      point = Number(desc.match('(Point|point|POINT) *: *([.0-9]+)')[2])
     }
     let current
     for (let i = actions.length - 1; i >= 0; i--) {
@@ -164,9 +160,6 @@ const parseData = (actionMap, cardsMap) => {
 }
 
 const writeList = (list, showiingData) => {
-  console.log(
-    'cardId,number,title,point,listName,inDate,outDate,time,labelPink,labelGreen,member'
-  )
   let total = 0
   let cardPointMap = {}
   for (let d of list) {
@@ -214,6 +207,58 @@ const writeListGroup = (list, groupby) => {
   }
   console.log(`total: ${total / 1000 / 60 / 60} hrs`)
   console.log(`total point: ${totalPoint}`)
+}
+
+const writePointCountList = (allDaysCountList, groupValues) => {
+  let line = '"datetime","all points","done points","remaining points"'
+  const keys = Object.keys(groupValues)
+  for (let k of keys) {
+    line += `,"${k}"`
+  }
+  line += '\n'
+  for (let d of allDaysCountList) {
+    line += `"${moment(d.time).format('YYYY-MM-DD HH:mm')}","${d.allPoints}","${
+      d.donePoints
+    }","${d.remainPointsEachGroup['all']}"`
+    for (let k of keys) {
+      line += `,"${
+        d.remainPointsEachGroup[k] ? d.remainPointsEachGroup[k] : '-'
+      }"`
+    }
+    line += '\n'
+  }
+  console.log(line)
+  fs.writeFileSync(
+    'chart-html/data/pointsCountData.csv.js',
+    'const pointsCountDataCSV = `' + line + '`'
+  )
+}
+
+const writeIssueCountList = (allDaysCountList, groupValues) => {
+  let line = '"datetime","all issues","done issues","remaining issues"'
+  const keys = Object.keys(groupValues)
+  for (let k of keys) {
+    line += `,"${k}"`
+  }
+  line += '\n'
+  for (let d of allDaysCountList) {
+    line += `"${moment(d.time).format('YYYY-MM-DD HH:mm')}","${
+      d.numberOfAllCards
+    }","${d.numberOfDoneCards}","${d.numberOfRemainCardsEachGroup['all']}"`
+    for (let k of keys) {
+      line += `,"${
+        d.numberOfRemainCardsEachGroup[k]
+          ? d.numberOfRemainCardsEachGroup[k]
+          : '-'
+      }"`
+    }
+    line += '\n'
+  }
+  console.log(line)
+  fs.writeFileSync(
+    'chart-html/data/issuesCountData.csv.js',
+    'const issuesCountDataCSV = `' + line + '`'
+  )
 }
 
 const main = async () => {
@@ -278,7 +323,8 @@ const main = async () => {
     // Parse
     let list = parseData(actionMap, cardsMap)
     // 出力内容選択
-    let initialCondition = ''
+    let initialFilterCondition = ''
+    let initialCountCondition = ''
     let groupby = ''
     let showingList = [
       'cardId',
@@ -295,10 +341,11 @@ const main = async () => {
     ]
     while (true) {
       console.log(inf('----------'))
-      console.log(inf('1: set group by'))
+      console.log(inf('1: set "group by"'))
       console.log(inf('2: input filter and show data'))
+      console.log(inf('3: remaining number of issues and points'))
       console.log(st(`current group by: ${groupby}`))
-      const type = await inputText('select: ', `^[1-2]$`)
+      const type = await inputText('select: ', `^[1-3]$`)
       if (type === '1') {
         console.log(
           inf('specify variable name, empty string means no group by')
@@ -335,7 +382,7 @@ const main = async () => {
         const condition = await inputText(
           'input condition: ',
           `.+`,
-          initialCondition
+          initialFilterCondition
         )
         console.log(inf('----------'))
         let newList = []
@@ -372,7 +419,109 @@ const main = async () => {
         } else {
           writeList(newList, showingList)
         }
-        initialCondition = condition
+        initialFilterCondition = condition
+      } else if (type === '3') {
+        console.log(
+          inf(
+            'specify filter by javascript condition, the following variables are available, "true" means showing all data'
+          )
+        )
+        // console.log(inf(`  variable names: ${showingList.toString()}`))
+        const condition = await inputText(
+          'input condition: ',
+          `.+`,
+          initialCountCondition
+        )
+        console.log(inf('----------'))
+        const firstDateTime = new Date(FIRSTDATETIME).getTime()
+        const interval = INTERVAL_HOUR * 60 * 60 * 1000
+        const currentTime = NOW
+        let allDaysCountList = []
+        let groupValues = {}
+        for (
+          let time = firstDateTime;
+          time < currentTime + interval;
+          time += interval
+        ) {
+          if (time > currentTime) {
+            time = currentTime
+          }
+          let numberOfAllCards = 0
+          let allPoints = 0
+          let numberOfDoneCards = 0
+          let donePoints = 0
+          let numberOfRemainCardsEachGroup = {}
+          let remainPointsEachGroup = {}
+          for (let d of list) {
+            let {
+              cardId,
+              number,
+              title,
+              point,
+              listName,
+              labelPink,
+              labelGreen,
+              member
+            } = d
+            const inDate = new Date(d.inDate)
+            const outDate = new Date(d.outDate)
+            try {
+              if (eval(condition)) {
+                if (
+                  inDate.getTime() < time &&
+                  time < outDate.getTime() &&
+                  d.listName !== 'Tasks'
+                ) {
+                  numberOfAllCards++
+                  allPoints += d.point
+                  if (d.listName === 'Done') {
+                    numberOfDoneCards++
+                    donePoints++
+                  } else {
+                    numberOfRemainCardsEachGroup[
+                      'all'
+                    ] = numberOfRemainCardsEachGroup['all']
+                      ? numberOfRemainCardsEachGroup['all'] + 1
+                      : 1
+                    remainPointsEachGroup['all'] = remainPointsEachGroup['all']
+                      ? remainPointsEachGroup['all'] + d.point
+                      : d.point
+                    if (groupby != '') {
+                      groupValues[d[groupby]] = d[groupby]
+                      numberOfRemainCardsEachGroup[
+                        d[groupby]
+                      ] = numberOfRemainCardsEachGroup[d[groupby]]
+                        ? numberOfRemainCardsEachGroup[d[groupby]] + 1
+                        : 1
+                      remainPointsEachGroup[d[groupby]] = remainPointsEachGroup[
+                        d[groupby]
+                      ]
+                        ? remainPointsEachGroup[d[groupby]] + d.point
+                        : d.point
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.error(er(err))
+              break
+            }
+          }
+          allDaysCountList.push({
+            time,
+            numberOfAllCards,
+            allPoints,
+            numberOfDoneCards,
+            donePoints,
+            numberOfRemainCardsEachGroup,
+            remainPointsEachGroup
+          })
+        }
+        writeIssueCountList(allDaysCountList, groupValues)
+        console.log(inf('----------'))
+        writePointCountList(allDaysCountList, groupValues)
+        initialCountCondition = condition
+        await open('chart-html/index.html')
       }
     }
   } catch (err) {

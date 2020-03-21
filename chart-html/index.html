@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>グラフ</title>
+  </head>
+  <body>
+    <h1>Burndown chart</h1>
+    <canvas id="Points"></canvas>
+    <canvas id="Issues"></canvas>
+    <script
+      src="https://code.jquery.com/jquery-3.4.1.min.js"
+      integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/1.0.8/jquery.csv.min.js"></script>
+    <script
+      type="text/javascript"
+      src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.bundle.js"
+    ></script>
+    <script type="text/javascript" src="data/chartdata.js"></script>
+    <script type="text/javascript" src="data/issuesCountData.csv.js"></script>
+    <script type="text/javascript" src="data/pointsCountData.csv.js"></script>
+    <script>
+      window.onload = () => {
+        let pointsData = parseCSV(pointsCountDataCSV)
+        let pointsCtx = document.getElementById('Points')
+        let pointsChartData = makeDataForChart(pointsData, 'Points')
+        let pointsChart = new Chart(pointsCtx, pointsChartData)
+
+        let issuesData = parseCSV(issuesCountDataCSV)
+        let issuesCtx = document.getElementById('Issues')
+        let issuesChartData = makeDataForChart(issuesData, 'Issues')
+        let issuesChart = new Chart(issuesCtx, issuesChartData)
+      }
+      //var ctx = document.getElementById('myLineChart')
+      //var myLineChart = new Chart(ctx, chartData)
+    </script>
+    <script type="text/javascript" src="js/chart-draw.js"></script>
+  </body>
+</html>
