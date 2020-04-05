@@ -268,11 +268,14 @@ const main = async () => {
     console.debug('boardList:', JSON.stringify(boardList, true, '  '))
     // Board一覧表示
     let num = 1
+    let re = ''
     for (const item of boardList) {
+      re += num === 1 ? '' : '|'
+      re += `^${num}$`
       console.log(inf(`${num++}: ${item.name}`))
     }
     // Board選択
-    let i = await inputText('select board by number: ', `^[1-${num - 1}]$`)
+    let i = await inputText('select board by number: ', re)
     const selectedBoard = boardList[Number(i - 1)]
     // User取得
     let memberMap = {}
