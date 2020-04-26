@@ -39,11 +39,11 @@ console.debug = () => {}
 const readUserInput = (question, initialInput) => {
   const rl = readLine.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   })
 
   return new Promise((resolve, reject) => {
-    rl.question(question, answer => {
+    rl.question(question, (answer) => {
       resolve(answer)
       rl.close()
     })
@@ -64,19 +64,15 @@ const inputText = async (questionText, re, initialInput) => {
   }
 }
 
-const getDataFromTrello = async url => {
+const getDataFromTrello = async (url) => {
   let response = await fetch(url)
   return await response.json()
 }
 
-const writeLine = d => {
-  let inDate = moment(d.inDate)
-    .tz('Asia/Tokyo')
-    .format('YYYY/MM/DD HH:mm:ss')
-  let outDate = moment(d.outDate)
-    .tz('Asia/Tokyo')
-    .format('YYYY/MM/DD HH:mm:ss')
-  let line = `"${d.cardId}","${d.number}","${d.title}","${d.point}","${d.listName}","${inDate}","${outDate}","${d.time}","${d.labelPink}","${d.labelGreen}","${d.member}"`
+const writeLine = (d) => {
+  let inDate = moment(d.inDate).tz('Asia/Tokyo').format('YYYY/MM/DD HH:mm:ss')
+  let outDate = moment(d.outDate).tz('Asia/Tokyo').format('YYYY/MM/DD HH:mm:ss')
+  let line = `"${d.cardId}","${d.number}","${d.title}","${d.point}","${d.listName}","${inDate}","${outDate}","${d.resultTime}","${d.reviewTime}","${d.labelPink}","${d.labelGreen}","${d.member}"`
   console.log(line)
 }
 
@@ -93,34 +89,103 @@ const parseData = (actionMap, cardsMap) => {
     let member = cardsMap[key].membersText ? cardsMap[key].membersText : '-'
     let desc = cardsMap[key].desc
     let point = 0
+    // parse description
     if (desc && desc.match('(Point|point|POINT) *: *([.0-9]+)')) {
       point = Number(desc.match('(Point|point|POINT) *: *([.0-9]+)')[2])
     }
     let current
+    // コメントに記載された作業時間やレビュー時間を取得
     for (let i = actions.length - 1; i >= 0; i--) {
       const a = actions[i]
       let listName = a.data.list ? a.data.list.name : '-'
       let date = new Date(a.date)
-      if (!current) {
-        current = {
+      let comment = a.data.text
+      let commentMember = a.memberCreator.fullName
+      let reviewTime = 0
+      let resultTime = 0
+      // parse result and review
+      if (comment) {
+        if (comment.match('(Result|result|RESULT) *: *([.0-9]+)')) {
+          resultTime = Number(
+            comment.match('(Result|result|RESULT) *: *([.0-9]+)')[2]
+          )
+        }
+        if (comment.match('(Review|review|REVIEW) *: *([.0-9]+)')) {
+          reviewTime = Number(
+            comment.match('(Review|review|REVIEW) *: *([.0-9]+)')[2]
+          )
+        }
+        list.push({
           cardId,
           number,
           title,
-          point,
+          point: 0, // commentにはpointを付けない
           listName,
           inDate: date,
+          outDate: date,
+          resultTime,
+          reviewTime,
           labelPink: labels['pink'] ? labels['pink'] : '-',
           labelGreen: labels['green']
             ? labels['green']
             : labels['lime']
             ? labels['lime']
             : '-',
-          member
+          member: commentMember,
+        })
+      } else {
+        // inDate / outDateを処理する
+        if (!current) {
+          current = {
+            cardId,
+            number,
+            title,
+            point,
+            listName,
+            inDate: date,
+            resultTime: 0,
+            reviewTime: 0,
+            labelPink: labels['pink'] ? labels['pink'] : '-',
+            labelGreen: labels['green']
+              ? labels['green']
+              : labels['lime']
+              ? labels['lime']
+              : '-',
+            member,
+          }
+        }
+        if (a.data.listBefore) {
+          current['listName'] = a.data.listBefore.name
+          current['outDate'] = new Date(a.date)
+          // current['time'] =
+          //   (current['outDate'].getTime() - current['inDate'].getTime()) /
+          //   1000 /
+          //   60 /
+          //   60
+          list.push(JSON.parse(JSON.stringify(current)))
+        }
+        if (a.data.listAfter) {
+          current = {
+            cardId,
+            number,
+            point,
+            title,
+            listName: a.data.listAfter.name,
+            inDate: new Date(a.date),
+            resultTime: 0,
+            reviewTime: 0,
+            labelPink: labels['pink'] ? labels['pink'] : '-',
+            labelGreen: labels['green']
+              ? labels['green']
+              : labels['lime']
+              ? labels['lime']
+              : '-',
+            member,
+          }
         }
       }
-      if (a.data.listBefore) {
-        current['listName'] = a.data.listBefore.name
-        current['outDate'] = new Date(a.date)
+      if (current) {
+        current['outDate'] = new Date()
         current['time'] =
           (current['outDate'].getTime() - current['inDate'].getTime()) /
           1000 /
@@ -128,66 +193,69 @@ const parseData = (actionMap, cardsMap) => {
           60
         list.push(JSON.parse(JSON.stringify(current)))
       }
-      if (a.data.listAfter) {
-        current = {
-          cardId,
-          number,
-          point,
-          title,
-          listName: a.data.listAfter.name,
-          inDate: new Date(a.date),
-          labelPink: labels['pink'] ? labels['pink'] : '-',
-          labelGreen: labels['green']
-            ? labels['green']
-            : labels['lime']
-            ? labels['lime']
-            : '-',
-          member
-        }
-      }
-    }
-    if (current) {
-      current['outDate'] = new Date()
-      current['time'] =
-        (current['outDate'].getTime() - current['inDate'].getTime()) /
-        1000 /
-        60 /
-        60
-      list.push(JSON.parse(JSON.stringify(current)))
-    }
-  }
+    } // if(commnet)
+  } // actionMap loop
   return list
 }
 
-const writeList = (list, showiingData) => {
+const writeList = (list, showiingList) => {
   let total = 0
+  let totalResultTime = 0
+  let totalReviewTime = 0
   let cardPointMap = {}
+  let header = ''
+  for (let name of showiingList) {
+    if (header !== '') {
+      header += ','
+    }
+    header += `"${name}"`
+  }
+  console.log(header)
   for (let d of list) {
     writeLine(d)
-    total += new Date(d.outDate).getTime() - new Date(d.inDate).getTime()
+    totalResultTime += d.resultTime
+    totalReviewTime += d.reviewTime
+    total += d.resultTime + d.reviewTime
     cardPointMap[d.cardId] = d.point
   }
   let totalPoint = 0
   for (let k in cardPointMap) {
     totalPoint += cardPointMap[k]
   }
-  console.log(`total: ${total / 1000 / 60 / 60} hrs`)
+  console.log(`total: ${total} hrs`)
   console.log(`total point: ${totalPoint}`)
+  console.log('-----')
+  console.log(`total result time: ${totalResultTime} hrs`)
+  console.log(`total review time ${totalReviewTime} hrs`)
 }
 
 const writeListGroup = (list, groupby) => {
-  console.log(`${groupby},totalPoint,totalTime`)
+  console.log(`${groupby},totalPoint,totalTime,totalResult,totalReview`)
   let total = 0
-  let timesByGroup = {}
+  let totalResultTime = 0
+  let totalReviewTime = 0
+  let resultTimeByGroup = {}
+  let reviewTimeByGroup = {}
+  let totalByGroup = {}
   let relatedCardIds = {}
   let pointsByGroup = {}
   let cardPointMap = {}
   for (let d of list) {
-    total += new Date(d.outDate).getTime() - new Date(d.inDate).getTime()
+    total += d.resultTime + d.reviewTime
+    totalResultTime += d.resultTime
+    totalReviewTime += d.reviewTime
     cardPointMap[d.cardId] = d.point
-    timesByGroup[d[groupby]] = timesByGroup[d[groupby]]
-      ? timesByGroup[d[groupby]] + d.time
-      : d.time
+    resultTimeByGroup[d[groupby]] = resultTimeByGroup[d[groupby]]
+      ? resultTimeByGroup[d[groupby]] + d.resultTime
+      : d.resultTime
+    reviewTimeByGroup[d[groupby]] = reviewTimeByGroup[d[groupby]]
+      ? reviewTimeByGroup[d[groupby]] + d.reviewTime
+      : d.reviewTime
+    totalByGroup[d[groupby]] = totalByGroup[d[groupby]]
+      ? totalByGroup[d[groupby]] + d.resultTime
+      : d.resultTime
+    totalByGroup[d[groupby]] += d.reviewTime
+
     if (!relatedCardIds[d[groupby]] || !relatedCardIds[d[groupby]][d.cardId]) {
       pointsByGroup[d[groupby]] = pointsByGroup[d[groupby]]
         ? pointsByGroup[d[groupby]] + d.point
@@ -202,10 +270,12 @@ const writeListGroup = (list, groupby) => {
   for (let k in cardPointMap) {
     totalPoint += cardPointMap[k]
   }
-  for (let k in timesByGroup) {
-    console.log(`"${k}","${pointsByGroup[k]}","${timesByGroup[k]}"`)
+  for (let k in totalByGroup) {
+    console.log(
+      `"${k}","${pointsByGroup[k]}","${totalByGroup[k]}","${resultTimeByGroup[k]}","${reviewTimeByGroup[k]}"`
+    )
   }
-  console.log(`total: ${total / 1000 / 60 / 60} hrs`)
+  console.log(`total: ${total} hrs`)
   console.log(`total point: ${totalPoint}`)
 }
 
@@ -337,10 +407,11 @@ const main = async () => {
       'listName',
       'inDate',
       'outDate',
-      'time',
+      'resultTime',
+      'reviewTime',
       'labelPink',
       'labelGreen',
-      'member'
+      'member',
     ]
     while (true) {
       console.log(inf('----------'))
@@ -363,10 +434,13 @@ const main = async () => {
             listName = 'listName',
             inDate = 'inDate',
             outDate = 'outDate',
-            time = 'time',
+            resultTime = 'resultTime',
+            reviewTime = 'reviewTime',
             labelPink = 'labelPink',
             labelGreen = 'labelGreen',
             member = 'member',
+            totalResultTime = 'totalResultTime',
+            totalReviewTime = 'totalReviewTime',
             totalTime = 'totalTime'
           if (groupbyText === '') {
             groupbyText = '""'
@@ -401,10 +475,11 @@ const main = async () => {
             listName,
             inDate,
             outDate,
-            time,
+            resultTime,
+            reviewTime,
             labelPink,
             labelGreen,
-            member
+            member,
           } = d
           inDate = new Date(inDate)
           outDate = new Date(outDate)
@@ -449,13 +524,15 @@ const main = async () => {
           if (time > currentTime) {
             time = currentTime
           }
+          let countedCard = {} // 計算済みのカードを記録
           let numberOfAllCards = 0
           let allPoints = 0
           let numberOfDoneCards = 0
           let donePoints = 0
           let numberOfRemainCardsEachGroup = {}
           let remainPointsEachGroup = {}
-          for (let d of list) {
+          for (let i = list.length - 1; i >= 0; i--) {
+            let d = list[i]
             let {
               cardId,
               number,
@@ -464,7 +541,7 @@ const main = async () => {
               listName,
               labelPink,
               labelGreen,
-              member
+              member,
             } = d
             const inDate = new Date(d.inDate)
             const outDate = new Date(d.outDate)
@@ -475,32 +552,38 @@ const main = async () => {
                   time < outDate.getTime() &&
                   d.listName !== 'Tasks'
                 ) {
-                  numberOfAllCards++
-                  allPoints += d.point
-                  if (d.listName === 'Done') {
-                    numberOfDoneCards++
-                    donePoints++
-                  } else {
-                    numberOfRemainCardsEachGroup[
-                      'all'
-                    ] = numberOfRemainCardsEachGroup['all']
-                      ? numberOfRemainCardsEachGroup['all'] + 1
-                      : 1
-                    remainPointsEachGroup['all'] = remainPointsEachGroup['all']
-                      ? remainPointsEachGroup['all'] + d.point
-                      : d.point
-                    if (groupby != '') {
-                      groupValues[d[groupby]] = d[groupby]
+                  if (countedCard[cardId] === undefined) {
+                    countedCard[cardId] = true
+                    numberOfAllCards++
+                    allPoints += d.point
+
+                    if (d.listName === 'Done') {
+                      numberOfDoneCards++
+                      donePoints++
+                    } else {
                       numberOfRemainCardsEachGroup[
-                        d[groupby]
-                      ] = numberOfRemainCardsEachGroup[d[groupby]]
-                        ? numberOfRemainCardsEachGroup[d[groupby]] + 1
+                        'all'
+                      ] = numberOfRemainCardsEachGroup['all']
+                        ? numberOfRemainCardsEachGroup['all'] + 1
                         : 1
-                      remainPointsEachGroup[d[groupby]] = remainPointsEachGroup[
-                        d[groupby]
+                      remainPointsEachGroup['all'] = remainPointsEachGroup[
+                        'all'
                       ]
-                        ? remainPointsEachGroup[d[groupby]] + d.point
+                        ? remainPointsEachGroup['all'] + d.point
                         : d.point
+                      if (groupby != '') {
+                        groupValues[d[groupby]] = d[groupby]
+                        numberOfRemainCardsEachGroup[
+                          d[groupby]
+                        ] = numberOfRemainCardsEachGroup[d[groupby]]
+                          ? numberOfRemainCardsEachGroup[d[groupby]] + 1
+                          : 1
+                        remainPointsEachGroup[
+                          d[groupby]
+                        ] = remainPointsEachGroup[d[groupby]]
+                          ? remainPointsEachGroup[d[groupby]] + d.point
+                          : d.point
+                      }
                     }
                   }
                 }
@@ -517,7 +600,7 @@ const main = async () => {
             numberOfDoneCards,
             donePoints,
             numberOfRemainCardsEachGroup,
-            remainPointsEachGroup
+            remainPointsEachGroup,
           })
         }
         writeIssueCountList(allDaysCountList, groupValues)
