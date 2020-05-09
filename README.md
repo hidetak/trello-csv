@@ -65,6 +65,8 @@ Terminalを起動し、ソースコードを配置したフォルダ(ここで�
 |USERNAME|Trelloに設定したユーザ名 |
 |FIRSTDATETIME|残りIssue数やPoint数をカウントする際にカウントを始める最初の日時 *2 |
 |INTERVAL_HOUR|残りIssue数やPoint数をカウントする際にカウントする間隔 *2 |
+|EXCEPT_LISTS|BurndownChartの表示時に除外するカードを配置するリストの名前 |
+|DONE_LISTS|BurndownChart表示時に完了となったカードを配置するリストの名前 |
 
 *1: KEYとTOKENはTrello APIの[紹介ページ](https://developers.trello.com/docs/api-introduction)を参照し、生成してください。
 
@@ -167,11 +169,11 @@ input condition: member === "trello user"
 |データ名|値の説明|
 | --- | --- |
 |datetime|いつの時点のカード数やPoint数の集計であるかを示します(最初の日時と間隔はconfig.jsonで指定します)。|
-|all issues|Tasksリストを除く全リストのカード数です。Tasksリストには今回のSprint外のカードを保持する運用であるため除外しています。|
-|all points|Tasksリストを除く全リストのカードに記載されたPoint数の合計です。|
-|done issues|Doneリストのカード数です。|
-|done points|Doneリストのカードに記載されたPoint数の合計です。|
-|remaining issues|まだDoneになっていないカードの数です。|
-|remaining points|まだDoneになっていないカードに記載されたPoint数の合計です。|
+|all issues|config.jsonのEXCEPT_LISTSに設定したリストを除く全リストのカード数です。|
+|all points|config.jsonのEXCEPT_LISTSに設定したリストを除く全リストのカードに記載されたPoint数の合計です。|
+|done issues|config.jsonのDONE_LISTSで定義したリストのカード数です。|
+|done points|config.jsonのDONE_LISTSで定義したリストのカードに記載されたPoint数の合計です。|
+|remaining issues|まだconfig.jsonのDONE_LISTSで定義したリスト以外のカードの数です。|
+|remaining points|まだconfig.jsonのDONE_LISTSで定義したリスト以外のカードに記載されたPoint数の合計です。|
 
 もし、group byを設定していた場合は上記の後に、group byで指定した変数の値毎に残りのIssue数やPoint数を出力します。

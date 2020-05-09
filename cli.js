@@ -20,7 +20,7 @@ try {
 const NOW = Date.now()
 
 // Debugの出力を抑止
-console.debug = () => {}
+//console.debug = () => {}
 
 const readUserInput = (question, initialInput) => {
   const rl = readLine.createInterface({

@@ -3,5 +3,7 @@
   "TOKEN": "<TOKEN>",
   "USERNAME": "<USERNAME>",
   "FIRSTDATETIME": "2020/03/16 19:00",
-  "INTERVAL_HOUR": 24
+  "INTERVAL_HOUR": 24,
+  "EXCEPT_LISTS": ["Tasks"],
+  "DONE_LISTS": ["Done"]
 }
