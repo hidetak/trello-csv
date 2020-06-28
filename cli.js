@@ -73,13 +73,15 @@ const writeListGroup = (trelloCsv, list, groupby) => {
     pointsByGroup,
     resultTimeByGroup,
     reviewTimeByGroup,
+    doneByGroup,
   } = trelloCsv.makeStatisticsUseGroupBy(list, groupby)
   let csv = trelloCsv.makeCsvUseGroupBy(
     groupby,
     totalByGroup,
     pointsByGroup,
     resultTimeByGroup,
-    reviewTimeByGroup
+    reviewTimeByGroup,
+    doneByGroup
   )
   console.log(csv)
   console.log(`total: ${total} hrs`)
